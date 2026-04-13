@@ -8,14 +8,15 @@ from xml.etree import ElementTree as ET
 
 st.set_page_config(page_title="Agricultural Price Indices", layout="wide")
 
-st.title("Effect of Iraq War (03-11) on Agricultural Input and Output Price Indices")
+st.title("Effect of Iraq War (03–11) on Agricultural Input and Output Price Indices")
+
 
 # Read XML file and convert to DataFrame
 def xml_to_df(xml_path):
     tree = ET.parse(xml_path)
     root = tree.getroot()
     rows = []
-    for record in root.findall(".//record"):  # adjust if XML tag differs (e.g., ".//item", ".//row")
+    for record in root.findall(".//record"):  # adjust if XML tag differs
         row = {}
         for child in record:
             tag = child.tag.strip()
@@ -27,7 +28,7 @@ def xml_to_df(xml_path):
 
 df = xml_to_df("AHM02.xml")
 
-# Normalize column names
+# Normalize column names and rename
 df.columns = df.columns.str.strip()
 
 df = df.rename(columns={
@@ -42,13 +43,12 @@ df = df.dropna(subset=["VALUE"])
 
 # Year
 df["Year"] = df["Month"].str[:4].astype(int)
-# Filter for 2003–2011 and keep the correct column names
+
+# Filter for 2003–2011
 df_filtered = df.loc[
     (df["Year"] >= 2003) & (df["Year"] <= 2011),
     ["Year", "Agricultural Product", "VALUE"]
 ].reset_index(drop=True)
-
-
 
 
 products = sorted(df_filtered["Agricultural Product"].unique())
@@ -67,11 +67,7 @@ year_range = st.sidebar.slider(
     value=(2003, 2011)
 )
 
-chart_type = st.sidebar.radio(
-    "Chart Type",
-    ["Line Chart", "Clustered Bar Chart"]
-)
-
+# ----- PIE CHART ONLY VERSION -----
 filtered = df_filtered[
     (df_filtered["Year"] >= year_range[0]) &
     (df_filtered["Year"] <= year_range[1]) &
@@ -79,26 +75,21 @@ filtered = df_filtered[
 ]
 
 if not filtered.empty:
-    df_pivot = filtered.pivot_table(
-        index="Year",
-        columns="Agricultural Product",
-        values="VALUE",
-        aggfunc="mean"
+    # Group by product and aggregate VALUE by mean
+    pie_data = filtered.groupby("Agricultural Product")["VALUE"].mean()
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    ax.pie(
+        pie_data,
+        labels=pie_data.index,
+        autopct="%1.1f%%",
+        startangle=90,
+        textprops={"fontsize": 10}
     )
+    ax.set_title("Share of Agricultural Price Indices by Product (2003–2011)")
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    if chart_type == "Line Chart":
-        df_pivot.plot(kind="line", marker="o", linewidth=2, ax=ax)
-        ax.set_title("Agricultural Price Indices Over Time")
-    else:
-        df_pivot.plot(kind="bar", ax=ax)
-        ax.set_title("Agricultural Price Indices by Year and Product")
-
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Index (Base 2005=100)")
-    ax.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
+    plt.axis("equal")  # Equal aspect ratio ensures that pie is drawn as a circle.
     plt.tight_layout()
 
     st.pyplot(fig)
